@@ -1,75 +1,181 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { StatusBar } from "expo-status-bar";
+import { requestTrackingPermissionsAsync } from "expo-tracking-transparency";
+import { useEffect } from "react";
+import { Alert, Button, StyleSheet, View } from "react-native";
+import {
+  AccessToken,
+  GraphRequest,
+  GraphRequestManager,
+  LoginButton,
+  LoginManager,
+  Settings,
+  ShareContent,
+  ShareDialog,
+} from "react-native-fbsdk-next";
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+export default function App() {
+  useEffect(() => {
+    const initFacebookSDK = async () => {
+      try {
+        const { status } = await requestTrackingPermissionsAsync();
 
-export default function HomeScreen() {
+        // Chỉ khởi tạo SDK một lần
+        Settings.initializeSDK();
+
+        if (status === "granted") {
+          await Settings.setAdvertiserTrackingEnabled(true);
+          Settings.setAdvertiserIDCollectionEnabled(true);
+          Settings.setAutoLogAppEventsEnabled(true);
+        }
+      } catch (error) {
+        console.error("Init error:", error);
+      }
+    };
+
+    initFacebookSDK();
+  }, []);
+
+  const getData = async () => {
+    try {
+      const currentToken = await AccessToken.getCurrentAccessToken();
+      if (!currentToken) {
+        Alert.alert("Error", "Please login first");
+        return;
+      }
+
+      const infoRequest = new GraphRequest(
+        "/me",
+        {
+          parameters: {
+            fields: {
+              string: "id,name,email", // Lấy thêm email nếu cần
+            },
+          },
+        },
+        (error, result) => {
+          if (error) {
+            console.log("Graph API Error:", error);
+            Alert.alert("Error", "Failed to get user data");
+          } else {
+            console.log("User Data:", result);
+            Alert.alert("Success", `Hello ${result?.name}!`);
+          }
+        }
+      );
+      new GraphRequestManager().addRequest(infoRequest).start();
+    } catch (error) {
+      console.error("Get data error:", error);
+    }
+  };
+
+  const shareLink = async () => {
+    try {
+      const content: ShareContent = {
+        contentType: "link",
+        contentUrl: "https://facebook.com",
+      };
+
+      const canShow = await ShareDialog.canShow(content);
+
+      if (canShow) {
+        const result = await ShareDialog.show(content);
+        if (result.isCancelled) {
+          console.log("Share cancelled");
+        } else {
+          console.log("Share success", result.postId);
+        }
+      }
+    } catch (error) {
+      console.error("Share error:", error);
+    }
+  };
+
+  const loginWithFacebook = async () => {
+    try {
+      const result = await LoginManager.logInWithPermissions([
+        "public_profile",
+        "email",
+      ]);
+
+      if (result.isCancelled) {
+        console.log("Login cancelled");
+      } else {
+        const tokenData = await AccessToken.getCurrentAccessToken();
+        console.log("Login success, token:", tokenData);
+        Alert.alert("Success", "Logged in successfully!");
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      Alert.alert("Error", "Login failed. Please try again.");
+    }
+  };
+
+  const logout = async () => {
+    try {
+      // 1. Logout từ cả 2 nguồn
+      await LoginManager.logOut();
+
+      // 2. Đợi 1 chút để hệ thống xử lý
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // 3. Kiểm tra kỹ hơn
+      const token = await AccessToken.getCurrentAccessToken();
+      console.log("Token after logout:", token);
+
+      if (!token || !token.accessToken) {
+        Alert.alert("Success", "Logged out!");
+      } else {
+        Alert.alert("Error", "Still logged in!");
+      }
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <View style={styles.container}>
+      {/* Sử dụng cả LoginButton và custom button để test */}
+      <LoginButton
+        onLoginFinished={async (error, result) => {
+          if (error) {
+            console.log("Login error:", error);
+            Alert.alert("Error", error.message);
+          } else if (result.isCancelled) {
+            console.log("Login cancelled");
+            Alert.alert("Info", "Login cancelled");
+          } else {
+            try {
+              const token = await AccessToken.getCurrentAccessToken();
+              console.log("Login success:", token);
+              Alert.alert("Success", "Logged in!");
+            } catch (e) {
+              console.error("Token check error:", e);
+            }
+          }
+        }}
+        onLogoutFinished={() => {
+          console.log("Logged out from button");
+          Alert.alert("Info", "Logged out from button");
+        }}
+      />
+      <Button title="Login with Facebook" onPress={loginWithFacebook} />
+      <Button
+        title="Get User Data"
+        onPress={getData} // Đã sửa thành getData
+      />
+      <Button title="Share Link" onPress={shareLink} />
+      <Button title="Logout" onPress={logout} />
+      <StatusBar style="auto" />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  container: {
+    flex: 1,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10, // Thêm khoảng cách giữa các nút
   },
 });

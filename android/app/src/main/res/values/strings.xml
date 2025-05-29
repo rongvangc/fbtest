@@ -1,0 +1,9 @@
+<resources>
+  <string name="app_name">test-fb</string>
+  <string name="expo_system_ui_user_interface_style" translatable="false">automatic</string>
+  <string name="facebook_app_id">600740522421439</string>
+  <string name="facebook_client_token">da160b028d4b7011ce182095fad3546f</string>
+  <string name="fb_login_protocol_scheme">fb600740522421439</string>
+  <string name="expo_splash_screen_resize_mode" translatable="false">contain</string>
+  <string name="expo_splash_screen_status_bar_translucent" translatable="false">false</string>
+</resources>
